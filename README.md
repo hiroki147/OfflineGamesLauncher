@@ -20,10 +20,14 @@ git push -u origin main
 
 `ios/**` に変更がある状態でpushすると `.github/workflows/build.yml` が動き、以下を自動で行います。
 
-1. Homebrewで `xcodegen` をインストール
-2. `ios/project.yml` から `OfflineGames.xcodeproj` を生成
-3. 署名なしでビルド(`CODE_SIGNING_ALLOWED=NO`)
-4. `OfflineGames.ipa` を作成し、Artifactsにアップロード
+1. ランナー上のXcodeを最新安定版に固定
+2. Homebrewで `xcodegen` をインストール
+3. `ios/project.yml` から `OfflineGames.xcodeproj` を生成
+4. 署名なしでビルド(`CODE_SIGNING_ALLOWED=NO`)
+5. `OfflineGames.ipa` を作成し、Artifactsにアップロード
+
+(XcodeGenが生成するプロジェクトフォーマットは新しめなので、ランナーの既定Xcodeが古いと
+「future Xcode project file format」エラーになります。そのため明示的に最新安定版へ切り替えています。)
 
 Actionsタブから手動実行(workflow_dispatch)もできます。
 ビルドが終わったら、リポジトリの Actions > 該当の実行 > Artifacts から `OfflineGames-ipa` をダウンロードしてください(中に `OfflineGames.ipa` が入っています)。
