@@ -1,0 +1,15 @@
+# Xcode(CIで自動生成するためコミット不要)
+*.xcodeproj/
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+
+# macOS
+.DS_Store
+
+# ビルド成果物
+*.ipa
+Payload/
