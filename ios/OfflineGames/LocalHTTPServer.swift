@@ -3,10 +3,13 @@ import Network
 
 /// Documents/games/ 以下を配信する、依存ライブラリ不要の最小HTTPサーバー。
 /// GETのみ対応(静的ファイル配信専用なのでこれで十分)。
+/// 大きなファイル(tar.gz等)も一括ロードせず、チャンク単位でストリーミング送信する。
 final class LocalHTTPServer {
     private var listener: NWListener?
     let port: UInt16
     let documentRoot: URL
+
+    private let chunkSize = 256 * 1024
 
     init(port: UInt16 = 8080, documentRoot: URL) {
         self.port = port
@@ -53,7 +56,7 @@ final class LocalHTTPServer {
 
         let parts = requestLine.split(separator: " ")
         guard parts.count >= 2, parts[0] == "GET" else {
-            sendResponse(status: "405 Method Not Allowed", body: Data(), contentType: "text/plain", on: connection)
+            sendSimpleResponse(status: "405 Method Not Allowed", body: Data(), contentType: "text/plain", on: connection)
             return
         }
 
@@ -70,18 +73,76 @@ final class LocalHTTPServer {
         let standardizedRoot = documentRoot.standardizedFileURL.path
         let standardizedFile = fileURL.standardizedFileURL.path
         guard standardizedFile.hasPrefix(standardizedRoot) else {
-            sendResponse(status: "403 Forbidden", body: Data(), contentType: "text/plain", on: connection)
+            sendSimpleResponse(status: "403 Forbidden", body: Data(), contentType: "text/plain", on: connection)
             return
         }
 
-        if let data = try? Data(contentsOf: fileURL) {
-            sendResponse(status: "200 OK", body: data, contentType: mimeType(for: fileURL), on: connection)
-        } else {
-            sendResponse(status: "404 Not Found", body: Data("Not Found".utf8), contentType: "text/plain", on: connection)
-        }
+        sendFileResponse(fileURL: fileURL, on: connection)
     }
 
-    private func sendResponse(status: String, body: Data, contentType: String, on connection: NWConnection) {
+    /// ファイルをストリーミングで返す。まるごとメモリに載せない。
+    private func sendFileResponse(fileURL: URL, on connection: NWConnection) {
+        let fm = FileManager.default
+
+        guard fm.fileExists(atPath: fileURL.path) else {
+            print("404: no such file at \(fileURL.path)")
+            sendSimpleResponse(status: "404 Not Found", body: Data("Not Found".utf8), contentType: "text/plain", on: connection)
+            return
+        }
+
+        guard let attrs = try? fm.attributesOfItem(atPath: fileURL.path),
+              let fileSize = attrs[.size] as? Int else {
+            print("500: failed to stat \(fileURL.path)")
+            sendSimpleResponse(status: "500 Internal Server Error", body: Data("Failed to stat file".utf8), contentType: "text/plain", on: connection)
+            return
+        }
+
+        guard let fileHandle = try? FileHandle(forReadingFrom: fileURL) else {
+            print("500: failed to open \(fileURL.path)")
+            sendSimpleResponse(status: "500 Internal Server Error", body: Data("Failed to open file".utf8), contentType: "text/plain", on: connection)
+            return
+        }
+
+        let header =
+            "HTTP/1.1 200 OK\r\n" +
+            "Content-Type: \(mimeType(for: fileURL))\r\n" +
+            "Content-Length: \(fileSize)\r\n" +
+            "Connection: close\r\n\r\n"
+
+        connection.send(content: Data(header.utf8), completion: .contentProcessed { [weak self] error in
+            guard let self else { return }
+            if let error {
+                print("header send error: \(error)")
+                fileHandle.closeFile()
+                connection.cancel()
+                return
+            }
+            self.streamChunk(fileHandle: fileHandle, connection: connection)
+        })
+    }
+
+    private func streamChunk(fileHandle: FileHandle, connection: NWConnection) {
+        let data = fileHandle.readData(ofLength: chunkSize)
+
+        if data.isEmpty {
+            fileHandle.closeFile()
+            connection.cancel()
+            return
+        }
+
+        connection.send(content: data, completion: .contentProcessed { [weak self] error in
+            guard let self else { return }
+            if let error {
+                print("chunk send error: \(error)")
+                fileHandle.closeFile()
+                connection.cancel()
+                return
+            }
+            self.streamChunk(fileHandle: fileHandle, connection: connection)
+        })
+    }
+
+    private func sendSimpleResponse(status: String, body: Data, contentType: String, on connection: NWConnection) {
         var header = "HTTP/1.1 \(status)\r\n"
         header += "Content-Type: \(contentType)\r\n"
         header += "Content-Length: \(body.count)\r\n"
@@ -108,6 +169,8 @@ final class LocalHTTPServer {
         case "mp3": return "audio/mpeg"
         case "ogg": return "audio/ogg"
         case "wav": return "audio/wav"
+        case "gz": return "application/gzip"
+        case "tar": return "application/x-tar"
         case "wasm": return "application/wasm"
         case "woff": return "font/woff"
         case "woff2": return "font/woff2"
