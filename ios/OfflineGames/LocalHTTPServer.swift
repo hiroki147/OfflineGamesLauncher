@@ -77,29 +77,32 @@ final class LocalHTTPServer {
             return
         }
 
-        sendFileResponse(fileURL: fileURL, on: connection)
+        sendFileResponse(fileURL: fileURL, requestPath: path, on: connection)
     }
 
     /// ファイルをストリーミングで返す。まるごとメモリに載せない。
-    private func sendFileResponse(fileURL: URL, on connection: NWConnection) {
+    private func sendFileResponse(fileURL: URL, requestPath: String, on connection: NWConnection) {
         let fm = FileManager.default
 
         guard fm.fileExists(atPath: fileURL.path) else {
-            print("404: no such file at \(fileURL.path)")
-            sendSimpleResponse(status: "404 Not Found", body: Data("Not Found".utf8), contentType: "text/plain", on: connection)
+            let message = "Not Found\n\nrequested path: \(requestPath)\nlooked up at: \(fileURL.path)"
+            print("404: \(message)")
+            sendSimpleResponse(status: "404 Not Found", body: Data(message.utf8), contentType: "text/plain", on: connection)
             return
         }
 
         guard let attrs = try? fm.attributesOfItem(atPath: fileURL.path),
               let fileSize = attrs[.size] as? Int else {
-            print("500: failed to stat \(fileURL.path)")
-            sendSimpleResponse(status: "500 Internal Server Error", body: Data("Failed to stat file".utf8), contentType: "text/plain", on: connection)
+            let message = "Internal Server Error\n\nfailed to stat: \(fileURL.path)"
+            print("500: \(message)")
+            sendSimpleResponse(status: "500 Internal Server Error", body: Data(message.utf8), contentType: "text/plain", on: connection)
             return
         }
 
         guard let fileHandle = try? FileHandle(forReadingFrom: fileURL) else {
-            print("500: failed to open \(fileURL.path)")
-            sendSimpleResponse(status: "500 Internal Server Error", body: Data("Failed to open file".utf8), contentType: "text/plain", on: connection)
+            let message = "Internal Server Error\n\nfailed to open: \(fileURL.path)"
+            print("500: \(message)")
+            sendSimpleResponse(status: "500 Internal Server Error", body: Data(message.utf8), contentType: "text/plain", on: connection)
             return
         }
 

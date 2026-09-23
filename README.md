@@ -25,12 +25,13 @@ git push -u origin main
 3. `ios/project.yml` から `OfflineGames.xcodeproj` を生成
 4. 署名なしでビルド(`CODE_SIGNING_ALLOWED=NO`)
 5. `OfflineGames.ipa` を作成し、Artifactsにアップロード
+6. リポジトリの Releases に `latest` タグでリリースを作成(既存の `latest` は削除してから作り直すので、常に最新版だけが残ります)し、`OfflineGames.ipa` を添付
 
 (XcodeGenが生成するプロジェクトフォーマットは新しめなので、ランナーの既定Xcodeが古いと
 「future Xcode project file format」エラーになります。そのため明示的に最新安定版へ切り替えています。)
 
 Actionsタブから手動実行(workflow_dispatch)もできます。
-ビルドが終わったら、リポジトリの Actions > 該当の実行 > Artifacts から `OfflineGames-ipa` をダウンロードしてください(中に `OfflineGames.ipa` が入っています)。
+ビルドが終わったら、リポジトリの **Releases** ページ(右側の「Releases」リンク、または `https://github.com/ユーザー名/リポジトリ名/releases/tag/latest`)から `OfflineGames.ipa` を直接ダウンロードできます。Artifactsを毎回探す必要はありません。
 
 ## 3. SideStoreでインストール
 

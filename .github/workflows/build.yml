@@ -7,6 +7,9 @@ on:
     paths:
       - "ios/**"
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: macos-15
@@ -50,3 +53,14 @@ jobs:
         with:
           name: OfflineGames-ipa
           path: OfflineGames.ipa
+
+      - name: Publish to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete latest --yes || true
+          git push origin :refs/tags/latest || true
+          gh release create latest OfflineGames.ipa \
+            --title "Latest build" \
+            --notes "Automated build from commit ${{ github.sha }}" \
+            --target "${{ github.sha }}"
