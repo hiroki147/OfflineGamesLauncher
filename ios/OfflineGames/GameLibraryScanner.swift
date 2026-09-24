@@ -12,6 +12,12 @@ struct GameInfo: Identifiable, Hashable {
 enum GameLibraryScanner {
     static func scan(gamesRoot: URL) -> [GameInfo] {
         let fm = FileManager.default
+
+        // iOSでは /var/... が /private/var/... へのシンボリックリンクになっており、
+        // enumerator が返すパスとルートパスで解決状態が食い違うことがあるため、
+        // 差し引き計算の前に両方ともシンボリックリンク解決済みの形に揃える。
+        let resolvedRoot = gamesRoot.resolvingSymlinksInPath()
+
         guard let enumerator = fm.enumerator(
             at: gamesRoot,
             includingPropertiesForKeys: [.isDirectoryKey],
@@ -23,9 +29,18 @@ enum GameLibraryScanner {
         for case let fileURL as URL in enumerator {
             guard fileURL.lastPathComponent.lowercased() == "index.html" else { continue }
 
+            let resolvedFileURL = fileURL.resolvingSymlinksInPath()
+
             let folderURL = fileURL.deletingLastPathComponent()
             let folderName = folderURL.lastPathComponent
-            let relativePath = fileURL.path.replacingOccurrences(of: gamesRoot.path, with: "")
+
+            var relativePath = resolvedFileURL.path.replacingOccurrences(
+                of: resolvedRoot.path,
+                with: ""
+            )
+            if !relativePath.hasPrefix("/") {
+                relativePath = "/" + relativePath
+            }
 
             var title = folderName
             var category = "HTML5"
