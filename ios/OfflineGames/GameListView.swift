@@ -1,4 +1,20 @@
 import SwiftUI
+import UIKit
+
+/// NavigationStack内でスワイプによる「戻る」ジェスチャーを無効化するためのヘルパー。
+/// ゲーム起動後は戻るボタンも消しているので、アプリを完全に終了して再起動しない限り
+/// ゲーム一覧には戻れなくなる。
+private struct DisableInteractivePop: UIViewControllerRepresentable {
+    func makeUIViewController(context: Context) -> UIViewController {
+        UIViewController()
+    }
+
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
+        DispatchQueue.main.async {
+            uiViewController.navigationController?.interactivePopGestureRecognizer?.isEnabled = false
+        }
+    }
+}
 
 struct GameListView: View {
     let server: LocalHTTPServer
@@ -40,8 +56,10 @@ struct GameListView: View {
             .navigationTitle("Offline Games")
             .navigationDestination(for: GameInfo.self) { game in
                 GameWebView(url: URL(string: "http://127.0.0.1:\(server.port)\(game.relativePath)")!)
-                    .navigationTitle(game.title)
-                    .navigationBarTitleDisplayMode(.inline)
+                    .navigationBarBackButtonHidden(true)
+                    .toolbar(.hidden, for: .navigationBar)
+                    .ignoresSafeArea()
+                    .background(DisableInteractivePop())
             }
             .onAppear(perform: reload)
             .refreshable { reload() }
